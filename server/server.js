@@ -1,31 +1,32 @@
 const express = require("express");
-const path = require("path");
+const cors = require("cors");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-const rootDir = path.resolve(__dirname, "..");
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-// Serve frontend files
-app.use(express.static(rootDir));
+// Test route
+app.get("/", (req, res) => {
+  res.send("Priceproof server is running");
+});
 
-// API endpoint
-app.get("/api/search", (req, res) => {
+// Example price endpoint (mock data for now)
+app.get("/api/prices", (req, res) => {
+  const query = req.query.q || "Unknown product";
+
   res.json({
-    query: req.query.q || "",
+    product: query,
     results: [
-      { store: "Walmart", price: 23.49 },
-      { store: "Amazon", price: 24.99 },
-      { store: "Target", price: 25.99 }
+      { retailer: "Walmart", price: 499.99, total: 499.99 },
+      { retailer: "Amazon", price: 529.99, total: 529.99 }
     ]
   });
 });
 
-// Root route
-app.get("/", (req, res) => {
-  res.sendFile(path.join(rootDir, "index.html"));
-});
-
+// IMPORTANT: Railway-safe port
 app.listen(PORT, () => {
-  console.log(`Priceproof running at http://localhost:${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
