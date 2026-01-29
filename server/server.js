@@ -9,10 +9,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// 👉 Serve frontend files
+// Serve frontend files (root folder)
 app.use(express.static(path.join(__dirname, "..")));
 
-// Test API route
+// API test route
 app.get("/api/prices", (req, res) => {
   const query = req.query.q || "Unknown product";
 
@@ -25,12 +25,12 @@ app.get("/api/prices", (req, res) => {
   });
 });
 
-// 👉 Catch-all to serve index.html
+// Catch-all: serve index.html
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "index.html"));
 });
 
-// Start server (Railway-safe)
+// Start server
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
