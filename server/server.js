@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -8,12 +9,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Test route
-app.get("/", (req, res) => {
-  res.send("Priceproof server is running");
-});
+// 👉 Serve frontend files
+app.use(express.static(path.join(__dirname, "..")));
 
-// Example price endpoint (mock data for now)
+// Test API route
 app.get("/api/prices", (req, res) => {
   const query = req.query.q || "Unknown product";
 
@@ -26,7 +25,12 @@ app.get("/api/prices", (req, res) => {
   });
 });
 
-// IMPORTANT: Railway-safe port
+// 👉 Catch-all to serve index.html
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "index.html"));
+});
+
+// Start server (Railway-safe)
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
