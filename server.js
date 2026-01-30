@@ -10,22 +10,37 @@ const APIFY_ACTOR = process.env.APIFY_ECOM_ACTOR || "apify/e-commerce-scraping-t
 app.use(express.json());
 app.use(express.static(__dirname));
 
-app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    hasApifyToken: !!APIFY_TOKEN,
+    apifyActor: APIFY_ACTOR,
+    port: PORT
+  });
+});
 
 app.get("/api/search", async (req, res) => {
   const q = String(req.query.q || "").trim();
+  const debug = String(req.query.debug || "") === "1";
   if (!q) return res.status(400).json({ error: "Missing query parameter: q" });
 
   try {
-    if (!APIFY_TOKEN) return res.json(stubResponse(q));
+    if (!APIFY_TOKEN) {
+      return res.json(stubResponse(q, { source: "stub", reason: "missing APIFY_TOKEN" }));
+    }
 
-    const offers = await fetchWalmartOffersViaApify(q);
-    if (!offers.length) return res.json(stubResponse(q));
+    const { offers, meta } = await fetchWalmartOffersViaApify(q);
 
-    return res.json(buildAgentResponse(q, offers));
+    if (!offers.length) {
+      return res.json(stubResponse(q, { source: "stub", reason: "apify returned 0 offers", meta }));
+    }
+
+    const out = buildAgentResponse(q, offers, { source: "apify", meta });
+    if (debug) out.debug = meta;
+    return res.json(out);
   } catch (e) {
-    console.error(e);
-    return res.json(stubResponse(q));
+    console.error("SEARCH ERROR:", e);
+    return res.json(stubResponse(q, { source: "stub", reason: "exception", error: String(e?.message || e) }));
   }
 });
 
@@ -33,10 +48,9 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-/* -------------------- Apify helpers -------------------- */
+/* -------------------- Apify -------------------- */
 
 async function fetchWalmartOffersViaApify(query) {
-  // Walmart-first: scrape Walmart search results
   const walmartUrl = `https://www.walmart.com/search?q=${encodeURIComponent(query)}`;
 
   const input = {
@@ -48,17 +62,37 @@ async function fetchWalmartOffersViaApify(query) {
 
   const run = await apifyRunActor(APIFY_ACTOR, input, 60);
   const datasetId = run?.data?.defaultDatasetId;
-  if (!datasetId) return [];
 
-  const items = await apifyGetDatasetItems(datasetId, 30);
-  if (!Array.isArray(items)) return [];
+  const meta = {
+    walmartUrl,
+    actor: APIFY_ACTOR,
+    runId: run?.data?.id || null,
+    datasetId: datasetId || null,
+    itemCount: 0,
+    sampleKeys: null,
+    sample: null
+  };
+
+  if (!datasetId) return { offers: [], meta };
+
+  const items = await apifyGetDatasetItems(datasetId, 20);
+  meta.itemCount = Array.isArray(items) ? items.length : 0;
+
+  if (Array.isArray(items) && items[0]) {
+    meta.sampleKeys = Object.keys(items[0]).slice(0, 30);
+    meta.sample = shrink(items[0]);
+  }
+
+  if (!Array.isArray(items)) return { offers: [], meta };
 
   const offers = [];
   for (const it of items) {
     const o = toOffer(it, query);
     if (o) offers.push(o);
   }
-  return offers;
+
+  meta.offerCount = offers.length;
+  return { offers, meta };
 }
 
 async function apifyRunActor(actorId, input, waitSeconds = 60) {
@@ -108,31 +142,57 @@ function normalizePrice(n) {
   return Number.isFinite(num) ? num : null;
 }
 
+function pickFirst(...vals) {
+  for (const v of vals) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === "string" && !v.trim()) continue;
+    return v;
+  }
+  return null;
+}
+
 function toOffer(item, query) {
-  const url = item?.url || item?.productUrl || item?.link || "";
-  const retailer = retailerFromUrl(url);
+  const url = pickFirst(item?.url, item?.productUrl, item?.link, item?.product?.url);
+  const retailer = retailerFromUrl(url || "");
 
-  const title =
-    item?.name ||
-    item?.title ||
-    item?.productName ||
-    item?.productTitle ||
-    `${query}`;
+  const title = pickFirst(
+    item?.name,
+    item?.title,
+    item?.productName,
+    item?.productTitle,
+    item?.product?.name,
+    item?.product?.title,
+    `${query}`
+  );
 
-  const image =
-    item?.image ||
-    item?.imageUrl ||
-    item?.mainImage ||
-    item?.thumbnail ||
-    (Array.isArray(item?.images) ? item.images[0] : null) ||
-    null;
+  const image = pickFirst(
+    item?.image,
+    item?.imageUrl,
+    item?.mainImage,
+    item?.thumbnail,
+    item?.product?.image,
+    item?.product?.imageUrl,
+    Array.isArray(item?.images) ? item.images[0] : null,
+    Array.isArray(item?.product?.images) ? item.product.images[0] : null,
+    item?.images?.[0]?.url,
+    item?.product?.images?.[0]?.url
+  );
 
-  const price =
-    normalizePrice(item?.offers?.price) ??
-    normalizePrice(item?.price) ??
-    normalizePrice(item?.currentPrice) ??
-    normalizePrice(item?.salePrice) ??
-    null;
+  // price is usually item.offers.price, but can appear in other places
+  const price = normalizePrice(
+    pickFirst(
+      item?.offers?.price,
+      item?.offers?.[0]?.price,
+      item?.offers?.[0]?.price?.value,
+      item?.price,
+      item?.price?.value,
+      item?.currentPrice,
+      item?.salePrice,
+      item?.product?.offers?.price,
+      item?.product?.price,
+      item?.product?.currentPrice
+    )
+  );
 
   if (!price) return null;
 
@@ -143,15 +203,15 @@ function toOffer(item, query) {
   return {
     id: `${retailer.toLowerCase().replace(/\s/g, "-")}-${Math.random().toString(16).slice(2)}`,
     title: String(title).slice(0, 160),
-    condition: item?.condition || "New",
+    condition: item?.condition || item?.product?.condition || "New",
     retailer,
     seller: retailer,
     pricing: { item: price, shipping, tax, total },
-    delivery: item?.delivery || "",
-    returns: item?.returnPolicy || "",
+    delivery: pickFirst(item?.delivery, item?.shipping, item?.product?.delivery, ""),
+    returns: pickFirst(item?.returnPolicy, item?.returns, ""),
     trust: ["Walmart", "Target", "Amazon", "Best Buy"].includes(retailer) ? "Verified" : "Marketplace",
-    image,
-    url
+    image: image || null,
+    url: url || null
   };
 }
 
@@ -163,13 +223,14 @@ function scoreOffer(o) {
   return (100000 - total) * 0.7 + trust * 1000 * 0.3;
 }
 
-function buildAgentResponse(query, offers) {
+function buildAgentResponse(query, offers, metaExtra = {}) {
   const ranked = [...offers].sort((a, b) => scoreOffer(b) - scoreOffer(a));
   const best = ranked[0];
   const alternatives = ranked.slice(1, 4);
 
   return {
     query,
+    meta: metaExtra,
     summary: {
       best_pick_reason: "Best balance of total cost and trust from Walmart results.",
       confidence: 0.65
@@ -199,8 +260,7 @@ function buildAgentResponse(query, offers) {
   };
 }
 
-function stubResponse(q) {
-  // fallback if Apify fails (keeps site working)
+function stubResponse(q, meta = {}) {
   const offers = [
     {
       id: "walmart-1",
@@ -216,5 +276,18 @@ function stubResponse(q) {
       url: "https://www.walmart.com"
     }
   ];
-  return buildAgentResponse(q, offers);
+  const out = buildAgentResponse(q, offers, meta);
+  return out;
+}
+
+function shrink(obj) {
+  try {
+    const s = JSON.stringify(obj);
+    if (s.length <= 2000) return obj;
+    const copy = {};
+    for (const k of Object.keys(obj).slice(0, 20)) copy[k] = obj[k];
+    return copy;
+  } catch {
+    return null;
+  }
 }
