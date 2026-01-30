@@ -2,292 +2,317 @@ const express = require("express");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 8080;
 
-const APIFY_TOKEN = process.env.APIFY_TOKEN;
+// Railway provides PORT. Locally you can use 8080.
+const PORT = process.env.PORT || 8080;
+const BUILD = "pp-v8";
+
+// ===== Apify config =====
+// Put these in Railway Variables (recommended) and optionally locally in CMD.
+const APIFY_TOKEN = process.env.APIFY_TOKEN || "";
+// If you stored the actor id/name in Railway as APIFY_ECOM_ACTOR, keep it.
+// Otherwise default to Apify’s official actor:
 const APIFY_ACTOR = process.env.APIFY_ECOM_ACTOR || "apify/e-commerce-scraping-tool";
 
+// Walmart US marketplace must be exactly this string in the actor schema.
+const WALMART_MARKETPLACE = "www.walmart.com";
+
+// How many items to request from Apify
+const MAX_RESULTS = Number(process.env.MAX_RESULTS || 8);
+
+// Timeout for Apify run waiting (ms)
+const APIFY_WAIT_MS = Number(process.env.APIFY_WAIT_MS || 25000);
+
 app.use(express.json());
+
+// Serve frontend files from project root (index.html, styles.css, script.js)
 app.use(express.static(__dirname));
 
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
+    build: BUILD,
     hasApifyToken: !!APIFY_TOKEN,
-    apifyActor: APIFY_ACTOR,
-    port: PORT
+    node: process.version,
+    actor: APIFY_ACTOR,
   });
 });
 
-app.get("/api/search", async (req, res) => {
-  const q = String(req.query.q || "").trim();
-  const debug = String(req.query.debug || "") === "1";
-  if (!q) return res.status(400).json({ error: "Missing query parameter: q" });
+/**
+ * Apify helper:
+ * 1) Start run and wait for finish
+ * 2) Read dataset items
+ */
+async function runApifyKeywordSearch(keyword) {
+  if (!APIFY_TOKEN) {
+    return {
+      ok: false,
+      reason: "missing_apify_token",
+      error: "Missing APIFY_TOKEN env var",
+    };
+  }
+
+  // Actor input schema fields (key ones):
+  // - keyword (string)
+  // - marketplaces (string[])
+  // - maxProductResults (integer)
+  // Docs show: detailsUrls, listingUrls, keyword, marketplaces, maxProductResults, etc. :contentReference[oaicite:1]{index=1}
+  const input = {
+    keyword,
+    marketplaces: [WALMART_MARKETPLACE],
+    maxProductResults: MAX_RESULTS,
+    // optional: include more fields if the actor provides them
+    additionalProperties: true,
+  };
+
+  // AbortController timeout
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), APIFY_WAIT_MS);
 
   try {
-    if (!APIFY_TOKEN) {
-      return res.json(stubResponse(q, { source: "stub", reason: "missing APIFY_TOKEN" }));
+    // Start run + wait
+    const runUrl =
+      `https://api.apify.com/v2/acts/${encodeURIComponent(APIFY_ACTOR)}/runs` +
+      `?token=${encodeURIComponent(APIFY_TOKEN)}` +
+      `&waitForFinish=${Math.ceil(APIFY_WAIT_MS / 1000)}`; // seconds
+
+    const runRes = await fetch(runUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      signal: controller.signal,
+    });
+
+    if (!runRes.ok) {
+      const text = await runRes.text().catch(() => "");
+      return {
+        ok: false,
+        reason: "apify_run_failed",
+        error: `Apify run failed: HTTP ${runRes.status} ${text}`,
+      };
     }
 
-    const { offers, meta } = await fetchWalmartOffersViaApify(q);
+    const runData = await runRes.json();
+    const datasetId = runData?.data?.defaultDatasetId;
 
-    if (!offers.length) {
-      return res.json(stubResponse(q, { source: "stub", reason: "apify returned 0 offers", meta }));
+    if (!datasetId) {
+      return {
+        ok: false,
+        reason: "no_dataset",
+        error: "Apify did not return defaultDatasetId",
+      };
     }
 
-    const out = buildAgentResponse(q, offers, { source: "apify", meta });
-    if (debug) out.debug = meta;
-    return res.json(out);
-  } catch (e) {
-    console.error("SEARCH ERROR:", e);
-    return res.json(stubResponse(q, { source: "stub", reason: "exception", error: String(e?.message || e) }));
+    // Fetch dataset items
+    const itemsUrl =
+      `https://api.apify.com/v2/datasets/${datasetId}/items` +
+      `?token=${encodeURIComponent(APIFY_TOKEN)}` +
+      `&clean=true&format=json`;
+
+    const itemsRes = await fetch(itemsUrl, { signal: controller.signal });
+    if (!itemsRes.ok) {
+      const text = await itemsRes.text().catch(() => "");
+      return {
+        ok: false,
+        reason: "dataset_fetch_failed",
+        error: `Dataset fetch failed: HTTP ${itemsRes.status} ${text}`,
+      };
+    }
+
+    const items = await itemsRes.json();
+    return {
+      ok: true,
+      items: Array.isArray(items) ? items : [],
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "exception",
+      error: err?.name === "AbortError" ? `Apify timed out (${APIFY_WAIT_MS}ms).` : String(err),
+    };
+  } finally {
+    clearTimeout(t);
   }
-});
-
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
-
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-/* -------------------- Apify -------------------- */
-
-async function fetchWalmartOffersViaApify(query) {
-  const walmartUrl = `https://www.walmart.com/search?q=${encodeURIComponent(query)}`;
-
-  const input = {
-    scrapeMode: "AUTO",
-    listingUrls: [walmartUrl],
-    maxProductResults: 12,
-    additionalProperties: true
-  };
-
-  const run = await apifyRunActor(APIFY_ACTOR, input, 60);
-  const datasetId = run?.data?.defaultDatasetId;
-
-  const meta = {
-    walmartUrl,
-    actor: APIFY_ACTOR,
-    runId: run?.data?.id || null,
-    datasetId: datasetId || null,
-    itemCount: 0,
-    sampleKeys: null,
-    sample: null
-  };
-
-  if (!datasetId) return { offers: [], meta };
-
-  const items = await apifyGetDatasetItems(datasetId, 20);
-  meta.itemCount = Array.isArray(items) ? items.length : 0;
-
-  if (Array.isArray(items) && items[0]) {
-    meta.sampleKeys = Object.keys(items[0]).slice(0, 30);
-    meta.sample = shrink(items[0]);
-  }
-
-  if (!Array.isArray(items)) return { offers: [], meta };
-
-  const offers = [];
-  for (const it of items) {
-    const o = toOffer(it, query);
-    if (o) offers.push(o);
-  }
-
-  meta.offerCount = offers.length;
-  return { offers, meta };
 }
 
-async function apifyRunActor(actorId, input, waitSeconds = 60) {
-  const act = encodeURIComponent(actorId);
-  const url = `https://api.apify.com/v2/acts/${act}/runs?token=${encodeURIComponent(
-    APIFY_TOKEN
-  )}&waitForFinish=${Math.max(1, Math.min(300, waitSeconds))}`;
+// Try to extract a numeric price from common shapes
+function extractPrice(item) {
+  // Common possibilities across scrapers:
+  // - item.price
+  // - item.currentPrice
+  // - item.price.value
+  // - item.price.amount
+  // - item.pricing.price
+  const candidates = [
+    item?.price,
+    item?.currentPrice,
+    item?.price?.value,
+    item?.price?.amount,
+    item?.pricing?.price,
+    item?.pricing?.current,
+    item?.offers?.[0]?.price,
+  ];
 
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input)
-  });
-
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Apify run failed: HTTP ${resp.status} ${text}`);
-  }
-  return await resp.json();
-}
-
-async function apifyGetDatasetItems(datasetId, limit = 20) {
-  const url = `https://api.apify.com/v2/datasets/${encodeURIComponent(
-    datasetId
-  )}/items?token=${encodeURIComponent(APIFY_TOKEN)}&format=json&clean=true&limit=${limit}`;
-
-  const resp = await fetch(url);
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Apify dataset failed: HTTP ${resp.status} ${text}`);
-  }
-  return await resp.json();
-}
-
-function retailerFromUrl(url) {
-  const u = String(url || "").toLowerCase();
-  if (u.includes("walmart.")) return "Walmart";
-  if (u.includes("amazon.")) return "Amazon";
-  if (u.includes("target.")) return "Target";
-  if (u.includes("bestbuy.")) return "Best Buy";
-  if (u.includes("ebay.")) return "eBay";
-  return "Online store";
-}
-
-function normalizePrice(n) {
-  const num = Number(n);
-  return Number.isFinite(num) ? num : null;
-}
-
-function pickFirst(...vals) {
-  for (const v of vals) {
-    if (v === null || v === undefined) continue;
-    if (typeof v === "string" && !v.trim()) continue;
-    return v;
+  for (const c of candidates) {
+    const n = Number(
+      typeof c === "object" && c !== null
+        ? (c.value ?? c.amount ?? c.current ?? c.price)
+        : c
+    );
+    if (Number.isFinite(n) && n > 0) return n;
   }
   return null;
 }
 
-function toOffer(item, query) {
-  const url = pickFirst(item?.url, item?.productUrl, item?.link, item?.product?.url);
-  const retailer = retailerFromUrl(url || "");
-
-  const title = pickFirst(
-    item?.name,
-    item?.title,
-    item?.productName,
-    item?.productTitle,
-    item?.product?.name,
-    item?.product?.title,
-    `${query}`
+function extractTitle(item) {
+  return (
+    item?.title ||
+    item?.name ||
+    item?.productName ||
+    item?.product?.title ||
+    "Unknown item"
   );
+}
 
-  const image = pickFirst(
-    item?.image,
-    item?.imageUrl,
-    item?.mainImage,
-    item?.thumbnail,
-    item?.product?.image,
-    item?.product?.imageUrl,
-    Array.isArray(item?.images) ? item.images[0] : null,
-    Array.isArray(item?.product?.images) ? item.product.images[0] : null,
-    item?.images?.[0]?.url,
-    item?.product?.images?.[0]?.url
+function extractUrl(item) {
+  return item?.url || item?.productUrl || item?.link || null;
+}
+
+function extractImage(item) {
+  return (
+    item?.image ||
+    item?.imageUrl ||
+    item?.thumbnail ||
+    item?.thumbnailUrl ||
+    (Array.isArray(item?.images) ? item.images[0] : null) ||
+    null
   );
+}
 
-  // price is usually item.offers.price, but can appear in other places
-  const price = normalizePrice(
-    pickFirst(
-      item?.offers?.price,
-      item?.offers?.[0]?.price,
-      item?.offers?.[0]?.price?.value,
-      item?.price,
-      item?.price?.value,
-      item?.currentPrice,
-      item?.salePrice,
-      item?.product?.offers?.price,
-      item?.product?.price,
-      item?.product?.currentPrice
-    )
-  );
+function toOffer(item, idx) {
+  const price = extractPrice(item);
+  const title = extractTitle(item);
+  const url = extractUrl(item);
+  const image = extractImage(item);
 
-  if (!price) return null;
-
-  const shipping = 0;
-  const tax = 0;
-  const total = price + shipping + tax;
+  // Shipping/tax calculation later. For now total=item when we only have item price.
+  const itemPrice = price ?? 0;
 
   return {
-    id: `${retailer.toLowerCase().replace(/\s/g, "-")}-${Math.random().toString(16).slice(2)}`,
-    title: String(title).slice(0, 160),
-    condition: item?.condition || item?.product?.condition || "New",
-    retailer,
-    seller: retailer,
-    pricing: { item: price, shipping, tax, total },
-    delivery: pickFirst(item?.delivery, item?.shipping, item?.product?.delivery, ""),
-    returns: pickFirst(item?.returnPolicy, item?.returns, ""),
-    trust: ["Walmart", "Target", "Amazon", "Best Buy"].includes(retailer) ? "Verified" : "Marketplace",
-    image: image || null,
-    url: url || null
+    id: `walmart-${idx + 1}`,
+    title,
+    condition: item?.condition || "New",
+    retailer: "Walmart",
+    seller: "Walmart",
+    pricing: { item: itemPrice, shipping: 0, tax: 0, total: itemPrice },
+    delivery: item?.delivery || null,
+    returns: item?.returns || null,
+    trust: "Verified",
+    image: image,
+    url: url,
+    cta: {
+      primary_label: "View deal",
+      checkout_url: url || "https://www.walmart.com",
+    },
   };
 }
 
-/* -------------------- Ranking + response -------------------- */
-
-function scoreOffer(o) {
-  const total = o?.pricing?.total ?? 999999;
-  const trust = o?.trust === "Verified" ? 10 : 6;
-  return (100000 - total) * 0.7 + trust * 1000 * 0.3;
-}
-
-function buildAgentResponse(query, offers, metaExtra = {}) {
-  const ranked = [...offers].sort((a, b) => scoreOffer(b) - scoreOffer(a));
-  const best = ranked[0];
-  const alternatives = ranked.slice(1, 4);
-
+function fallbackResponse(q, metaExtra = {}) {
   return {
-    query,
-    meta: metaExtra,
+    query: q,
+    meta: { build: BUILD, source: "stub", ...metaExtra },
     summary: {
-      best_pick_reason: "Best balance of total cost and trust from Walmart results.",
-      confidence: 0.65
+      best_pick_reason: "Fallback shown (no live results yet).",
+      confidence: 0.5,
     },
     best_pick: {
-      ...best,
+      id: "fallback-1",
+      title: `${q} (Fallback)`,
+      condition: "Unknown",
+      retailer: "Walmart",
+      seller: "Walmart",
+      pricing: { item: 0, shipping: 0, tax: 0, total: 0 },
+      delivery: null,
+      returns: null,
+      trust: "Fallback",
+      image: null,
+      url: "https://www.walmart.com",
       cta: {
-        primary_label: "View deal",
-        checkout_url: best.url || "https://www.walmart.com"
-      }
+        primary_label: "Search Walmart",
+        checkout_url: `https://www.walmart.com/search?q=${encodeURIComponent(q)}`,
+      },
     },
-    alternatives: alternatives.map((o, idx) => ({
-      label: idx === 0 ? "Good alternative" : idx === 1 ? "Another option" : "More choices",
-      tradeoff: "Prices and availability can change quickly.",
-      ...o,
-      cta: {
-        primary_label: "View deal",
-        checkout_url: o.url || "#"
-      }
-    })),
+    alternatives: [],
     disclosures: {
-      pricing_note:
-        "Shipping/tax may vary at checkout based on your location and retailer settings.",
-      trust_note:
-        "We prioritize trusted retailers when available."
-    }
+      pricing_note: "Live prices unavailable right now. Try again or refine the search.",
+      trust_note: "We prioritize trusted retailers when available.",
+    },
   };
 }
 
-function stubResponse(q, meta = {}) {
-  const offers = [
-    {
-      id: "walmart-1",
-      title: `${q} (New)`,
-      condition: "New",
-      retailer: "Walmart",
-      seller: "Walmart",
-      pricing: { item: 449.0, shipping: 0.0, tax: 27.85, total: 476.85 },
-      delivery: "2–4 days",
-      returns: "Free returns within 30 days",
-      trust: "Verified",
-      image: null,
-      url: "https://www.walmart.com"
-    }
-  ];
-  const out = buildAgentResponse(q, offers, meta);
-  return out;
-}
+// MAIN SEARCH ENDPOINT
+app.get("/api/search", async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.status(400).json({ error: "Missing query parameter: q" });
 
-function shrink(obj) {
-  try {
-    const s = JSON.stringify(obj);
-    if (s.length <= 2000) return obj;
-    const copy = {};
-    for (const k of Object.keys(obj).slice(0, 20)) copy[k] = obj[k];
-    return copy;
-  } catch {
-    return null;
+  const apify = await runApifyKeywordSearch(q);
+
+  if (!apify.ok) {
+    return res.json(
+      fallbackResponse(q, {
+        source: "apify",
+        reason: apify.reason,
+        error: apify.error,
+      })
+    );
   }
-}
+
+  const rawItems = apify.items || [];
+  const offersAll = rawItems.map(toOffer).filter(o => o.pricing.item > 0);
+
+  // If Apify returned items but none had a price we could parse
+  if (!offersAll.length) {
+    return res.json(
+      fallbackResponse(q, {
+        source: "apify",
+        reason: "no_results",
+        note: "Apify returned 0 priced items for this keyword (try a more specific search).",
+        apifyItemsCount: rawItems.length,
+      })
+    );
+  }
+
+  // Sort lowest price first
+  offersAll.sort((a, b) => (a.pricing.total || 0) - (b.pricing.total || 0));
+
+  const best = offersAll[0];
+  const alternatives = offersAll.slice(1, 4);
+
+  return res.json({
+    query: q,
+    meta: {
+      build: BUILD,
+      source: "apify",
+      marketplace: WALMART_MARKETPLACE,
+      apifyItemsCount: rawItems.length,
+      mappedPricedCount: offersAll.length,
+    },
+    summary: {
+      best_pick_reason: "Lowest priced Walmart result.",
+      confidence: 0.75,
+    },
+    best_pick: best,
+    alternatives: alternatives,
+    disclosures: {
+      pricing_note: "Shipping/tax may vary at checkout. Verify the listing details.",
+      trust_note: "We prioritize trusted retailers when available.",
+    },
+  });
+});
+
+// Fallback homepage
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} (build ${BUILD})`);
+});
