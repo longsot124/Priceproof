@@ -230,3 +230,121 @@ footer {
   font-size: 14px;
   color: var(--muted);
 }
+/* ===== Agent UI ===== */
+.agent-grid{
+  display:grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap:16px;
+  margin-top: 14px;
+}
+@media (max-width: 900px){
+  .agent-grid{ grid-template-columns: 1fr; }
+}
+
+.agent-best, .agent-alts, .alt-card, .watch-box{
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+}
+
+.agent-kicker{
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+.agent-title{
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.agent-meta{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  opacity:0.9;
+  font-size:0.95rem;
+  margin-bottom: 12px;
+}
+.badge{
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.22);
+  font-size: 0.85rem;
+}
+
+.agent-total{
+  font-size: 2rem;
+  font-weight: 900;
+  margin-top: 6px;
+}
+.agent-breakdown{
+  opacity:0.85;
+  font-size:0.95rem;
+  margin-bottom: 10px;
+}
+.agent-why{
+  margin: 10px 0 12px;
+  opacity:0.95;
+  line-height: 1.35;
+}
+.agent-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top: 10px;
+}
+
+.btn-primary, .btn-ghost{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  text-decoration:none;
+  border: none;
+  cursor:pointer;
+}
+
+.btn-primary{
+  background: white;
+  color: #4b44c9;
+}
+.btn-ghost{
+  background: rgba(255,255,255,0.16);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.22);
+}
+.full{ width: 100%; }
+
+.alt-card{ margin-top: 12px; }
+.alt-top{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+}
+.alt-label{ font-weight: 800; }
+.alt-retailer{ opacity:0.9; font-size:0.95rem; margin-top:2px; }
+.alt-total{ font-weight: 900; font-size: 1.15rem; }
+.alt-tradeoff{ opacity:0.9; margin: 8px 0 10px; }
+
+.watch-box{ margin-top: 14px; }
+.watch-title{ font-weight: 900; margin-bottom: 8px; }
+.watch-row{ display:flex; gap:10px; align-items:center; margin-bottom: 10px; }
+.watch-label{ opacity:0.9; }
+.watch-input{
+  flex:1;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: none;
+  outline:none;
+}
+.watch-check{ display:flex; gap:10px; align-items:center; opacity:0.95; margin-bottom: 10px; }
+.watch-note{ opacity:0.8; font-size: 0.9rem; margin-top: 8px; }
+
+.subtle{ opacity: 0.85; margin-top: -4px; }
+.fineprint{ opacity: 0.8; margin-top: 10px; font-size: 0.9rem; }

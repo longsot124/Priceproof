@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Priceproof — Buy Smarter</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,32 +11,25 @@
 <header class="topbar">
   <div class="brand">Priceproof</div>
   <nav>
-    <a href="#about">Why Priceproof</a>
+    <a href="#why">Why Priceproof</a>
     <a href="#how">How it works</a>
     <a href="#results">Results</a>
   </nav>
 </header>
 
-<!-- HERO -->
 <section class="hero">
-  <h1>Buy smarter,<br />without the guesswork.</h1>
-  <p class="hero-sub">
-    Compare prices across trusted retailers and see the best total cost —
-    so you can shop confidently every time.
+  <h1>Buy smarter,<br/>without the guesswork.</h1>
+  <p>
+    Compare prices across trusted retailers and see the best total cost — so you can shop confidently every time.
   </p>
 
-  <form class="search-box" onsubmit="searchProduct(); return false;">
-    <input
-      id="searchInput"
-      type="text"
-      placeholder="Search a product or UPC…"
-      autocomplete="off"
-    />
+  <!-- IMPORTANT: form submit = Enter works, no page reload -->
+  <form id="searchForm" class="search-box">
+    <input id="searchInput" type="text" placeholder="Search a product or UPC…" autocomplete="off" />
     <button id="searchButton" type="submit">Check Price</button>
   </form>
 </section>
 
-<!-- TRUST -->
 <section class="trust-section">
   <div class="trust-item">Unbiased comparisons</div>
   <div class="trust-item">No sponsored placements</div>
@@ -44,48 +37,31 @@
   <div class="trust-item">You stay in control</div>
 </section>
 
-<!-- ABOUT -->
-<section id="about" class="about-section">
+<section id="why" class="how-section">
   <h2>Why Priceproof exists</h2>
   <p>
-    Prices change constantly, and comparing them across retailers takes time.
-    Priceproof exists to make that process simple, transparent, and reliable.
+    Prices change constantly, and comparing them across retailers takes time. Priceproof exists to make that process simple,
+    transparent, and reliable.
   </p>
   <p>
-    We focus on showing the <strong>lowest total price</strong> so you can move
-    forward with confidence — no second-guessing required.
+    We focus on showing the lowest total price so you can move forward with confidence — no second-guessing required.
   </p>
 </section>
 
-<!-- HOW -->
 <section id="how" class="how-section">
   <h2>How it works</h2>
   <div class="steps">
-    <div class="step">
-      <span>1</span>
-      <p>Search for any product or UPC</p>
-    </div>
-    <div class="step">
-      <span>2</span>
-      <p>We compare prices across major retailers</p>
-    </div>
-    <div class="step">
-      <span>3</span>
-      <p>See the best deal and buy with confidence</p>
-    </div>
+    <div class="step"><span>1</span><p>Search for any product or UPC</p></div>
+    <div class="step"><span>2</span><p>We compare prices across major retailers</p></div>
+    <div class="step"><span>3</span><p>See the best deal and buy with confidence</p></div>
   </div>
 </section>
 
-<!-- RESULTS -->
 <section id="results" class="results hidden">
-  <div class="results-header">
-    <h2>Best price available</h2>
-    <span class="timestamp">Prices checked moments ago</span>
-  </div>
+  <h2>Best price available</h2>
+  <div class="subtle">Prices checked moments ago</div>
 
-  <p id="recommendation" class="highlight"></p>
-  <p id="savings" class="highlight savings"></p>
-
+  <!-- agentBox will be injected ABOVE the table by script.js -->
   <table>
     <thead>
       <tr>
@@ -97,12 +73,9 @@
     <tbody id="resultsBody"></tbody>
   </table>
 
-  <p class="disclaimer">
-    Prices may vary. Final totals are determined at retailer checkout.
-  </p>
+  <div class="fineprint">Prices may vary. Final totals are determined at retailer checkout.</div>
 </section>
 
-<!-- CTA -->
 <section class="cta">
   <h2>Never wonder if you overpaid again.</h2>
   <p>Make Priceproof part of every purchase.</p>
@@ -112,6 +85,7 @@
   © 2026 Priceproof — Transparent pricing, always.
 </footer>
 
-<script src="script.js"></script>
+<!-- Cache-bust so the browser definitely loads the new JS -->
+<script src="script.js?v=25"></script>
 </body>
 </html>
