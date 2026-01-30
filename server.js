@@ -1,233 +1,155 @@
+/* server.js — Priceproof (pp-v9)
+   - Serves frontend from project root
+   - /api/health health check
+   - /api/search?q=... pulls Walmart results via Apify E-commerce Scraping Tool
+   - Longer timeout + safe fallback
+*/
+
 const express = require("express");
 const path = require("path");
 
 const app = express();
 
-// Railway provides PORT. Locally you can use 8080.
+// Railway uses process.env.PORT. Locally you can hit :8080
 const PORT = process.env.PORT || 8080;
-const BUILD = "pp-v8";
 
-// ===== Apify config =====
-// Put these in Railway Variables (recommended) and optionally locally in CMD.
-const APIFY_TOKEN = process.env.APIFY_TOKEN || "";
-// If you stored the actor id/name in Railway as APIFY_ECOM_ACTOR, keep it.
-// Otherwise default to Apify’s official actor:
+// ---- Build / config ----
+const BUILD = "pp-v9";
+
+// Apify settings (Actor: apify/e-commerce-scraping-tool)
 const APIFY_ACTOR = process.env.APIFY_ECOM_ACTOR || "apify/e-commerce-scraping-tool";
+const APIFY_TOKEN = process.env.APIFY_TOKEN || "";
 
-// Walmart US marketplace must be exactly this string in the actor schema.
-const WALMART_MARKETPLACE = "www.walmart.com";
+// Timeouts
+const APIFY_TIMEOUT_MS = 65000; // how long OUR server waits for Apify response
+const APIFY_RUN_TIMEOUT_SECS = 120; // how long Apify is allowed to run (actor-side)
 
-// How many items to request from Apify
-const MAX_RESULTS = Number(process.env.MAX_RESULTS || 8);
+// Simple in-memory cache (helps speed / avoid repeated scrapes)
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const cache = new Map(); // key -> { at, data }
 
-// Timeout for Apify run waiting (ms)
-const APIFY_WAIT_MS = Number(process.env.APIFY_WAIT_MS || 25000);
-
+// ---- middleware ----
 app.use(express.json());
 
-// Serve frontend files from project root (index.html, styles.css, script.js)
+// Serve your frontend files (index.html, styles.css, script.js) from the project root
 app.use(express.static(__dirname));
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "ok",
-    build: BUILD,
-    hasApifyToken: !!APIFY_TOKEN,
-    node: process.version,
-    actor: APIFY_ACTOR,
+// Log requests (helps debug)
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const ms = Date.now() - start;
+    console.log(`${req.method} ${req.originalUrl} -> ${res.statusCode} (${ms}ms)`);
   });
+  next();
 });
 
-/**
- * Apify helper:
- * 1) Start run and wait for finish
- * 2) Read dataset items
- */
-async function runApifyKeywordSearch(keyword) {
-  if (!APIFY_TOKEN) {
-    return {
-      ok: false,
-      reason: "missing_apify_token",
-      error: "Missing APIFY_TOKEN env var",
-    };
-  }
-
-  // Actor input schema fields (key ones):
-  // - keyword (string)
-  // - marketplaces (string[])
-  // - maxProductResults (integer)
-  // Docs show: detailsUrls, listingUrls, keyword, marketplaces, maxProductResults, etc. :contentReference[oaicite:1]{index=1}
-  const input = {
-    keyword,
-    marketplaces: [WALMART_MARKETPLACE],
-    maxProductResults: MAX_RESULTS,
-    // optional: include more fields if the actor provides them
-    additionalProperties: true,
-  };
-
-  // AbortController timeout
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), APIFY_WAIT_MS);
-
-  try {
-    // Start run + wait
-    const runUrl =
-      `https://api.apify.com/v2/acts/${encodeURIComponent(APIFY_ACTOR)}/runs` +
-      `?token=${encodeURIComponent(APIFY_TOKEN)}` +
-      `&waitForFinish=${Math.ceil(APIFY_WAIT_MS / 1000)}`; // seconds
-
-    const runRes = await fetch(runUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-      signal: controller.signal,
-    });
-
-    if (!runRes.ok) {
-      const text = await runRes.text().catch(() => "");
-      return {
-        ok: false,
-        reason: "apify_run_failed",
-        error: `Apify run failed: HTTP ${runRes.status} ${text}`,
-      };
-    }
-
-    const runData = await runRes.json();
-    const datasetId = runData?.data?.defaultDatasetId;
-
-    if (!datasetId) {
-      return {
-        ok: false,
-        reason: "no_dataset",
-        error: "Apify did not return defaultDatasetId",
-      };
-    }
-
-    // Fetch dataset items
-    const itemsUrl =
-      `https://api.apify.com/v2/datasets/${datasetId}/items` +
-      `?token=${encodeURIComponent(APIFY_TOKEN)}` +
-      `&clean=true&format=json`;
-
-    const itemsRes = await fetch(itemsUrl, { signal: controller.signal });
-    if (!itemsRes.ok) {
-      const text = await itemsRes.text().catch(() => "");
-      return {
-        ok: false,
-        reason: "dataset_fetch_failed",
-        error: `Dataset fetch failed: HTTP ${itemsRes.status} ${text}`,
-      };
-    }
-
-    const items = await itemsRes.json();
-    return {
-      ok: true,
-      items: Array.isArray(items) ? items : [],
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      reason: "exception",
-      error: err?.name === "AbortError" ? `Apify timed out (${APIFY_WAIT_MS}ms).` : String(err),
-    };
-  } finally {
-    clearTimeout(t);
-  }
+// ---- helpers ----
+function money(n) {
+  const num = Number(n);
+  return Number.isFinite(num) ? num : null;
 }
 
-// Try to extract a numeric price from common shapes
-function extractPrice(item) {
-  // Common possibilities across scrapers:
-  // - item.price
-  // - item.currentPrice
-  // - item.price.value
-  // - item.price.amount
-  // - item.pricing.price
-  const candidates = [
-    item?.price,
-    item?.currentPrice,
-    item?.price?.value,
-    item?.price?.amount,
-    item?.pricing?.price,
-    item?.pricing?.current,
-    item?.offers?.[0]?.price,
-  ];
+function safeStr(x) {
+  return typeof x === "string" ? x : x == null ? "" : String(x);
+}
 
-  for (const c of candidates) {
-    const n = Number(
-      typeof c === "object" && c !== null
-        ? (c.value ?? c.amount ?? c.current ?? c.price)
-        : c
-    );
-    if (Number.isFinite(n) && n > 0) return n;
-  }
+function getFirstImage(item) {
+  // Apify actors vary; images can be string, array, or nested
+  if (!item) return null;
+  if (typeof item.image === "string") return item.image;
+  if (typeof item.imageUrl === "string") return item.imageUrl;
+  if (typeof item.thumbnail === "string") return item.thumbnail;
+  if (Array.isArray(item.images) && item.images.length) return item.images[0];
+  if (Array.isArray(item.imageUrls) && item.imageUrls.length) return item.imageUrls[0];
   return null;
 }
 
-function extractTitle(item) {
+function getUrl(item) {
+  if (!item) return null;
   return (
-    item?.title ||
-    item?.name ||
-    item?.productName ||
-    item?.product?.title ||
-    "Unknown item"
-  );
-}
-
-function extractUrl(item) {
-  return item?.url || item?.productUrl || item?.link || null;
-}
-
-function extractImage(item) {
-  return (
-    item?.image ||
-    item?.imageUrl ||
-    item?.thumbnail ||
-    item?.thumbnailUrl ||
-    (Array.isArray(item?.images) ? item.images[0] : null) ||
+    item.url ||
+    item.productUrl ||
+    item.itemUrl ||
+    item.link ||
     null
   );
 }
 
-function toOffer(item, idx) {
-  const price = extractPrice(item);
-  const title = extractTitle(item);
-  const url = extractUrl(item);
-  const image = extractImage(item);
+function extractPrice(item) {
+  // Try common fields from ecomm actors
+  const candidates = [
+    item.price,
+    item.currentPrice,
+    item.salePrice,
+    item.minPrice,
+    item.priceValue,
+    item.price_amount,
+  ];
 
-  // Shipping/tax calculation later. For now total=item when we only have item price.
-  const itemPrice = price ?? 0;
+  for (const c of candidates) {
+    const v = money(c);
+    if (v != null && v > 0) return v;
+  }
 
-  return {
-    id: `walmart-${idx + 1}`,
-    title,
-    condition: item?.condition || "New",
-    retailer: "Walmart",
-    seller: "Walmart",
-    pricing: { item: itemPrice, shipping: 0, tax: 0, total: itemPrice },
-    delivery: item?.delivery || null,
-    returns: item?.returns || null,
-    trust: "Verified",
-    image: image,
-    url: url,
-    cta: {
-      primary_label: "View deal",
-      checkout_url: url || "https://www.walmart.com",
-    },
-  };
+  // Sometimes price is inside nested structures
+  if (item.pricing && typeof item.pricing === "object") {
+    const v = money(item.pricing.price || item.pricing.current || item.pricing.value);
+    if (v != null && v > 0) return v;
+  }
+
+  return null;
 }
 
-function fallbackResponse(q, metaExtra = {}) {
+function mapWalmartItems(apifyItems, query) {
+  const mapped = [];
+
+  for (let i = 0; i < apifyItems.length; i++) {
+    const it = apifyItems[i];
+    const title = safeStr(it.title || it.name || it.productTitle || query).trim();
+    const price = extractPrice(it);
+    const url = getUrl(it);
+    const image = getFirstImage(it);
+
+    if (!title) continue;
+    if (price == null) continue; // we only keep priced items
+
+    mapped.push({
+      id: `walmart-${i + 1}`,
+      title,
+      condition: "New",
+      retailer: "Walmart",
+      seller: "Walmart",
+      pricing: { item: price, shipping: 0, tax: 0, total: price },
+      delivery: null,
+      returns: null,
+      trust: "Verified",
+      image: image || null,
+      url: url || `https://www.walmart.com/search?q=${encodeURIComponent(query)}`,
+      cta: {
+        primary_label: "View deal",
+        checkout_url: url || `https://www.walmart.com/search?q=${encodeURIComponent(query)}`
+      }
+    });
+  }
+
+  return mapped;
+}
+
+function pickBest(items) {
+  if (!items.length) return null;
+  const sorted = [...items].sort((a, b) => (a.pricing.total || 1e12) - (b.pricing.total || 1e12));
+  return { best: sorted[0], alternatives: sorted.slice(1, 4) };
+}
+
+function fallbackResponse(query, metaExtra = {}) {
   return {
-    query: q,
+    query,
     meta: { build: BUILD, source: "stub", ...metaExtra },
-    summary: {
-      best_pick_reason: "Fallback shown (no live results yet).",
-      confidence: 0.5,
-    },
+    summary: { best_pick_reason: "Fallback shown (no live results yet).", confidence: 0.5 },
     best_pick: {
       id: "fallback-1",
-      title: `${q} (Fallback)`,
+      title: `${query} (Fallback)`,
       condition: "Unknown",
       retailer: "Walmart",
       seller: "Walmart",
@@ -236,83 +158,158 @@ function fallbackResponse(q, metaExtra = {}) {
       returns: null,
       trust: "Fallback",
       image: null,
-      url: "https://www.walmart.com",
+      url: `https://www.walmart.com/search?q=${encodeURIComponent(query)}`,
       cta: {
         primary_label: "Search Walmart",
-        checkout_url: `https://www.walmart.com/search?q=${encodeURIComponent(q)}`,
-      },
+        checkout_url: `https://www.walmart.com/search?q=${encodeURIComponent(query)}`
+      }
     },
     alternatives: [],
     disclosures: {
       pricing_note: "Live prices unavailable right now. Try again or refine the search.",
-      trust_note: "We prioritize trusted retailers when available.",
-    },
+      trust_note: "We prioritize trusted retailers when available."
+    }
   };
 }
 
-// MAIN SEARCH ENDPOINT
-app.get("/api/search", async (req, res) => {
-  const q = String(req.query.q || "").trim();
-  if (!q) return res.status(400).json({ error: "Missing query parameter: q" });
+async function apifyRunAndGetItems({ query }) {
+  // Use Apify “run-sync-get-dataset-items” endpoint
+  // Docs-style pattern:
+  // POST https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items?token=...&timeout=...
+  const url =
+    `https://api.apify.com/v2/acts/${encodeURIComponent(APIFY_ACTOR)}` +
+    `/run-sync-get-dataset-items?token=${encodeURIComponent(APIFY_TOKEN)}` +
+    `&timeout=${APIFY_RUN_TIMEOUT_SECS}`;
 
-  const apify = await runApifyKeywordSearch(q);
+  // IMPORTANT: marketplaces must be EXACT allowed values; Walmart is "www.walmart.com"
+  const input = {
+    // keyword search mode
+    search: query,
+    marketplaces: ["www.walmart.com"],
+    // keep results small while testing; you can increase later
+    maxItems: 10
+  };
 
-  if (!apify.ok) {
-    return res.json(
-      fallbackResponse(q, {
-        source: "apify",
-        reason: apify.reason,
-        error: apify.error,
-      })
-    );
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), APIFY_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      signal: controller.signal
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Apify HTTP ${res.status} ${txt}`);
+    }
+
+    const items = await res.json();
+    return Array.isArray(items) ? items : [];
+  } finally {
+    clearTimeout(t);
   }
+}
 
-  const rawItems = apify.items || [];
-  const offersAll = rawItems.map(toOffer).filter(o => o.pricing.item > 0);
-
-  // If Apify returned items but none had a price we could parse
-  if (!offersAll.length) {
-    return res.json(
-      fallbackResponse(q, {
-        source: "apify",
-        reason: "no_results",
-        note: "Apify returned 0 priced items for this keyword (try a more specific search).",
-        apifyItemsCount: rawItems.length,
-      })
-    );
-  }
-
-  // Sort lowest price first
-  offersAll.sort((a, b) => (a.pricing.total || 0) - (b.pricing.total || 0));
-
-  const best = offersAll[0];
-  const alternatives = offersAll.slice(1, 4);
-
-  return res.json({
-    query: q,
-    meta: {
-      build: BUILD,
-      source: "apify",
-      marketplace: WALMART_MARKETPLACE,
-      apifyItemsCount: rawItems.length,
-      mappedPricedCount: offersAll.length,
-    },
-    summary: {
-      best_pick_reason: "Lowest priced Walmart result.",
-      confidence: 0.75,
-    },
-    best_pick: best,
-    alternatives: alternatives,
-    disclosures: {
-      pricing_note: "Shipping/tax may vary at checkout. Verify the listing details.",
-      trust_note: "We prioritize trusted retailers when available.",
-    },
+// ---- routes ----
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    build: BUILD,
+    hasApifyToken: !!APIFY_TOKEN,
+    node: process.version,
+    actor: APIFY_ACTOR,
+    cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000)
   });
 });
 
-// Fallback homepage
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/api/search", async (req, res) => {
+  const q = safeStr(req.query.q || "").trim();
+  const nocache = safeStr(req.query.nocache || "") === "1";
 
+  if (!q) return res.status(400).json({ error: "Missing query parameter: q" });
+
+  // If token missing, return fallback with clear reason
+  if (!APIFY_TOKEN) {
+    return res.json(fallbackResponse(q, { source: "stub", reason: "missing APIFY_TOKEN" }));
+  }
+
+  // Cache check
+  const key = q.toLowerCase();
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (!nocache && cached && now - cached.at < CACHE_TTL_MS) {
+    return res.json({ ...cached.data, meta: { ...(cached.data.meta || {}), cached: true } });
+  }
+
+  // Call Apify
+  try {
+    const apifyItems = await apifyRunAndGetItems({ query: q });
+    const mapped = mapWalmartItems(apifyItems, q);
+
+    if (!mapped.length) {
+      const data = fallbackResponse(q, {
+        source: "apify",
+        reason: "no_results",
+        note: "Apify returned 0 priced items for this keyword (try a more specific search).",
+        cached: false
+      });
+      cache.set(key, { at: now, data });
+      return res.json(data);
+    }
+
+    const { best, alternatives } = pickBest(mapped);
+
+    const data = {
+      query: q,
+      meta: {
+        build: BUILD,
+        source: "apify",
+        marketplace: "www.walmart.com",
+        apifyItemsCount: apifyItems.length,
+        mappedPricedCount: mapped.length,
+        cached: false
+      },
+      summary: {
+        best_pick_reason: "Lowest priced Walmart result.",
+        confidence: 0.75
+      },
+      best_pick: best,
+      alternatives,
+      disclosures: {
+        pricing_note: "Shipping/tax may vary at checkout. Verify the listing details.",
+        trust_note: "We prioritize trusted retailers when available."
+      }
+    };
+
+    cache.set(key, { at: now, data });
+    return res.json(data);
+
+  } catch (err) {
+    const msg = err?.name === "AbortError"
+      ? `Apify timed out (${APIFY_TIMEOUT_MS}ms).`
+      : safeStr(err?.message || err);
+
+    const data = fallbackResponse(q, {
+      source: "apify",
+      reason: "exception",
+      error: msg,
+      cached: false
+    });
+
+    cache.set(key, { at: now, data });
+    return res.json(data);
+  }
+});
+
+// Fallback for homepage
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+// Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT} (build ${BUILD})`);
 });
