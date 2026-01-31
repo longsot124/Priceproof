@@ -1,22 +1,13 @@
+// ===== Priceproof Frontend (Agent UI + smooth results) =====
+
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("searchForm");
-  const input = document.getElementById("searchInput");
   const backToTop = document.getElementById("backToTop");
 
   if (form) {
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       searchProduct();
-    });
-  }
-
-  // Force Enter to submit even if browser gets weird
-  if (input) {
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        searchProduct();
-      }
     });
   }
 
@@ -35,9 +26,13 @@ async function searchProduct() {
   const resultsSection = document.getElementById("results");
   const resultsBody = document.getElementById("resultsBody");
   const metaEl = document.getElementById("resultsMeta");
-  if (!resultsSection || !resultsBody) return;
+  const agentMount = document.getElementById("agentMount");
+
+  if (!resultsSection || !resultsBody || !agentMount) return;
 
   resultsSection.classList.remove("hidden");
+
+  // Smooth scroll to results
   resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
 
   // Loading state
@@ -49,10 +44,7 @@ async function searchProduct() {
     </tr>
   `;
 
-  // Clear previous agent UI
-  const existingBox = document.getElementById("agentBox");
-  if (existingBox) existingBox.remove();
-
+  agentMount.innerHTML = "";
   if (metaEl) metaEl.textContent = "Checking prices…";
 
   try {
@@ -71,41 +63,43 @@ async function searchProduct() {
     // Table: best + alternatives
     const all = [data.best_pick, ...(data.alternatives || [])].filter(Boolean);
 
-    resultsBody.innerHTML = all.map((o) => {
-      const total = formatMoney(o?.pricing?.total);
-      const item = formatMoney(o?.pricing?.item);
-      const retailer = escapeHtml(o.retailer || "Unknown");
-      const title = escapeHtml(o.title || "");
-      const condition = escapeHtml(o.condition || "");
-      const url = o?.cta?.checkout_url || o?.url || "#";
+    resultsBody.innerHTML = all
+      .map((o) => {
+        const total = formatMoney(o?.pricing?.total);
+        const item = formatMoney(o?.pricing?.item);
+        const retailer = escapeHtml(o.retailer || "Unknown");
+        const title = escapeHtml(o.title || "");
+        const condition = escapeHtml(o.condition || "");
+        const url = o?.cta?.checkout_url || o?.url || "#";
 
-      return `
-        <tr>
-          <td>
-            <strong>${retailer}</strong>
-            <div style="opacity:0.88; font-weight:800; margin-top:2px;">
-              ${title ? `${title}` : ""}${condition ? ` • ${condition}` : ""}
-            </div>
-            <div style="margin-top:6px;">
-              <a href="${url}" target="_blank" rel="noopener"
-                 style="font-weight:950; color: rgba(140,220,255,.98); text-decoration:none;">
-                View deal →
-              </a>
-            </div>
-          </td>
-          <td>${item}</td>
-          <td><strong>${total}</strong></td>
-        </tr>
-      `;
-    }).join("");
+        return `
+          <tr>
+            <td>
+              <strong>${retailer}</strong>
+              <div style="opacity:0.85; font-weight:850; margin-top:2px;">
+                ${title ? `${title}` : ""}${condition ? ` • ${condition}` : ""}
+              </div>
+              <div style="margin-top:8px;">
+                <a class="btn btn-ghost" href="${url}" target="_blank" rel="noopener" style="padding:10px 12px;">
+                  View deal →
+                </a>
+              </div>
+            </td>
+            <td>${item}</td>
+            <td><strong>${total}</strong></td>
+          </tr>
+        `;
+      })
+      .join("");
 
   } catch (err) {
     if (metaEl) metaEl.textContent = "Unable to retrieve prices right now.";
+
     resultsBody.innerHTML = `
       <tr>
         <td colspan="3" style="padding:18px;">
           <strong>Something went wrong while fetching prices.</strong><br/>
-          <span style="opacity:0.85; font-weight:750;">Try again in a moment.</span>
+          <span style="opacity:0.85; font-weight:800;">Try again in a moment.</span>
         </td>
       </tr>
     `;
@@ -114,12 +108,8 @@ async function searchProduct() {
 }
 
 function renderAgentResults(data) {
-  const resultsSection = document.getElementById("results");
-  if (!resultsSection) return;
-
-  const card = resultsSection.querySelector(".section-card");
-  const tableWrap = resultsSection.querySelector(".table-wrap");
-  if (!card || !tableWrap) return;
+  const agentMount = document.getElementById("agentMount");
+  if (!agentMount) return;
 
   const best = data?.best_pick || {};
   const alts = data?.alternatives || [];
@@ -128,10 +118,7 @@ function renderAgentResults(data) {
     ? `<img class="agent-image" src="${best.image}" alt="${escapeHtml(best.title || "Best pick")}">`
     : "";
 
-  const agentBox = document.createElement("div");
-  agentBox.id = "agentBox";
-
-  agentBox.innerHTML = `
+  agentMount.innerHTML = `
     <div class="agent-grid">
       <div class="agent-best">
         <div class="agent-kicker">✨ Best pick right now</div>
@@ -151,9 +138,7 @@ function renderAgentResults(data) {
         <div class="agent-price">
           <div class="agent-total">${formatMoney(best?.pricing?.total)}</div>
           <div class="agent-breakdown">
-            Item ${formatMoney(best?.pricing?.item)} •
-            Ship ${formatMoney(best?.pricing?.shipping)} •
-            Est. tax ${formatMoney(best?.pricing?.tax)}
+            Item ${formatMoney(best?.pricing?.item)} • Ship ${formatMoney(best?.pricing?.shipping)} • Est. tax ${formatMoney(best?.pricing?.tax)}
           </div>
         </div>
 
@@ -162,12 +147,20 @@ function renderAgentResults(data) {
         </div>
 
         <div class="agent-actions">
-          <a class="btn-primary" href="${best?.cta?.checkout_url || best?.url || "#"}" target="_blank" rel="noopener">View deal</a>
-          <button class="btn-ghost" type="button" onclick="addToCart()">Add to cart</button>
-          <button class="btn-ghost" type="button" onclick="startWatch()">Watch price</button>
+          <a class="btn btn-primary" href="${best?.cta?.checkout_url || best?.url || "#"}" target="_blank" rel="noopener">
+            View deal
+          </a>
+          <button class="btn btn-primary" type="button" onclick="addToCart('${escapeHtml(best.id || "best")}')">
+            Add to cart
+          </button>
+          <button class="btn btn-primary" type="button" onclick="startWatch('${escapeHtml(data.query || "")}')">
+            Watch price
+          </button>
         </div>
 
-        <div class="agent-footnote">${escapeHtml(data?.disclosures?.pricing_note || "")}</div>
+        <div class="agent-footnote">
+          ${escapeHtml(data?.disclosures?.pricing_note || "")}
+        </div>
       </div>
 
       <div class="agent-alts">
@@ -180,9 +173,10 @@ function renderAgentResults(data) {
 
         <div class="watch-box">
           <div class="watch-title">Keep watching this for you</div>
+
           <div class="watch-row">
             <label class="watch-label">Notify me under</label>
-            <input id="watchPrice" class="watch-input" placeholder="$ (optional)" />
+            <input id="watchPrice" class="input" placeholder="$ (optional)" />
           </div>
 
           <label class="watch-check">
@@ -190,15 +184,15 @@ function renderAgentResults(data) {
             Include used/refurb options
           </label>
 
-          <button class="btn-primary full" type="button" onclick="saveWatch('${escapeHtml(data.query || "")}')">Start Watch</button>
+          <button class="btn btn-primary full" type="button" onclick="saveWatch('${escapeHtml(data.query || "")}')">
+            Start Watch
+          </button>
+
           <div class="watch-note">V1 saves locally for now. Alerts come later.</div>
         </div>
       </div>
     </div>
   `;
-
-  // Insert above table
-  card.insertBefore(agentBox, tableWrap);
 }
 
 function renderAltCard(o) {
@@ -220,7 +214,9 @@ function renderAltCard(o) {
         </div>
       </div>
       <div class="alt-tradeoff">${escapeHtml(o.tradeoff || "")}</div>
-      <a class="btn-ghost full" href="${o?.cta?.checkout_url || o?.url || "#"}" target="_blank" rel="noopener">View deal</a>
+      <a class="btn btn-ghost full" href="${o?.cta?.checkout_url || o?.url || "#"}" target="_blank" rel="noopener">
+        View deal
+      </a>
     </div>
   `;
 }
@@ -233,12 +229,14 @@ function startWatch() {
 function saveWatch(query) {
   const priceEl = document.getElementById("watchPrice");
   const usedEl = document.getElementById("watchUsed");
+
   const payload = {
     query,
     under: (priceEl?.value || "").trim(),
     includeUsed: !!usedEl?.checked,
     createdAt: new Date().toISOString()
   };
+
   localStorage.setItem("priceproof_watch", JSON.stringify(payload));
   alert("✅ Watch started! (Saved locally for now.)");
 }

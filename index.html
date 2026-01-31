@@ -1,94 +1,91 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Priceproof™ — Your AI deal assistant</title>
-
-  <!-- Cache-busting query so your browser/public site actually updates -->
-  <link rel="stylesheet" href="/styles.css?v=pp-aurora-1" />
+  <title>Priceproof</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
   <!-- Aurora background layers -->
-  <div class="aurora" aria-hidden="true">
-    <span class="a a1"></span>
-    <span class="a a2"></span>
-    <span class="a a3"></span>
-    <span class="grain"></span>
-  </div>
+  <div class="aurora" aria-hidden="true"></div>
 
   <div class="page">
-    <!-- Topbar -->
+    <!-- Top bar -->
     <header class="topbar">
       <div class="topbar-center">
-        <a class="brand" href="/" aria-label="Priceproof home">
+        <a class="brand" href="#">
           <span class="brand-mark" aria-hidden="true">
-            <!-- Friendly “AI sparkle” logo -->
+            <!-- Friendly AI orb icon -->
             <svg viewBox="0 0 24 24" fill="none">
-              <path d="M12 2c.7 2.8 1.2 3.7 4 4-.7.1-3.3.6-4 4-.7-3.4-3.3-3.9-4-4 2.8-.3 3.3-1.2 4-4Z" fill="currentColor" opacity=".9"/>
-              <path d="M18.5 10.5c.4 1.6.7 2 2.5 2.2-1.8.2-2.1.6-2.5 2.3-.4-1.7-.7-2.1-2.5-2.3 1.8-.2 2.1-.6 2.5-2.2Z" fill="currentColor" opacity=".85"/>
-              <path d="M6 12c.5 2.2.9 2.8 3.2 3-.3.1-2.7.5-3.2 3-.5-2.5-2.9-2.9-3.2-3 2.3-.2 2.7-.8 3.2-3Z" fill="currentColor" opacity=".75"/>
+              <path d="M12 21c4.97 0 9-4.03 9-9s-4.03-9-9-9-9 4.03-9 9 4.03 9 9 9Z" stroke="currentColor" stroke-width="1.6"/>
+              <path d="M8.8 12.2c.6 1.1 1.8 1.8 3.2 1.8s2.6-.7 3.2-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M9.2 10.2h.01M14.8 10.2h.01" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
             </svg>
           </span>
           <span class="brand-text">Priceproof<span class="tm">™</span></span>
         </a>
-
-        <nav class="actions">
-          <button class="chip" type="button" title="Account" aria-label="Account">
-            <span aria-hidden="true">👤</span> Account
-          </button>
-
-          <button class="chip" type="button" title="Cart" aria-label="Cart">
-            <span aria-hidden="true">🛒</span> Cart
-            <span id="cartCount" class="cart-badge">0</span>
-          </button>
-        </nav>
       </div>
+
+      <nav class="topbar-right">
+        <button class="chip chip-ghost" type="button" aria-label="Account">
+          <span aria-hidden="true">👤</span> <span>Account</span>
+        </button>
+
+        <button class="chip chip-ghost" type="button" aria-label="Cart">
+          <span aria-hidden="true">🛒</span>
+          <span>Cart</span>
+          <span id="cartCount" class="cart-badge">0</span>
+        </button>
+      </nav>
     </header>
 
     <!-- Hero -->
     <main class="hero">
-      <section class="hero-card lift">
-        <div class="kicker">
-          <span class="dot"></span>
-          Your friendly AI deal assistant
-        </div>
+      <section class="card hero-card">
+        <div class="hero-center">
+          <div class="kicker aurora-chip">
+            <span class="kdot" aria-hidden="true"></span>
+            <span>Your friendly AI deal assistant</span>
+          </div>
 
-        <h1 class="headline">
-          <span class="headline-plain">Find the best deal</span>
-          <span class="headline-bubble">anywhere online</span>
-        </h1>
+          <h1 class="hero-title">
+            <span class="bubble-title">Buy smarter, without the guesswork.</span>
+          </h1>
 
-        <p class="subhead">
-          Priceproof searches the web and highlights the best total cost — so you can shop confidently every time.
-        </p>
+          <p class="subhead">
+            Priceproof searches the web and highlights the best total cost — so you can shop confidently every time.
+          </p>
 
-        <form id="searchForm" class="search-box" autocomplete="off">
-          <input id="searchInput" name="q" placeholder="Try “ps5 slim”, “airpods pro 2”, or a UPC…" />
-          <button type="submit" class="btn-primary">Check Price</button>
-        </form>
+          <form id="searchForm" class="search-box" autocomplete="off">
+            <input id="searchInput" class="input" type="text" placeholder="Search a product (ex: ps5, airpods, nike shoes…)" />
+            <button class="btn btn-primary" type="submit">Check Price</button>
+          </form>
 
-        <div class="trust-row">
-          <div class="pill">Unbiased comparisons</div>
-          <div class="pill">No sponsored placements</div>
-          <div class="pill">Lowest total cost first</div>
-          <div class="pill">You stay in control</div>
+          <div class="trust-row">
+            <div class="pill">Unbiased comparisons</div>
+            <div class="pill">No sponsored placements</div>
+            <div class="pill">Lowest total cost first</div>
+            <div class="pill">You stay in control</div>
+          </div>
         </div>
       </section>
 
       <!-- Results -->
       <section id="results" class="section results hidden">
-        <div class="section-card lift">
-          <div class="results-head">
+        <div class="card section-card">
+          <div class="results-head center">
             <div>
               <div class="results-title">Best price available</div>
-              <div id="resultsMeta" class="muted">Prices checked moments ago</div>
+              <div id="resultsMeta" class="results-meta">Prices checked moments ago</div>
             </div>
-            <div class="tiny-note">Final totals are determined at retailer checkout.</div>
+            <div class="results-note">
+              Final totals are determined at retailer checkout.
+            </div>
           </div>
 
-          <!-- agent UI gets injected above the table by script.js -->
+          <!-- Agent UI gets injected here -->
+          <div id="agentMount"></div>
 
           <div class="table-wrap">
             <table>
@@ -101,27 +98,27 @@
               </thead>
               <tbody id="resultsBody">
                 <tr>
-                  <td colspan="3" style="padding:18px; opacity:.85;">Search above to see results.</td>
+                  <td colspan="3" style="padding:18px; opacity:.85;">
+                    Search above to see results.
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div class="cta-card">
+          <div class="cta-card center">
             <h3>Next: 1-click “Add to Cart” (Priceproof checkout)</h3>
             <p>We’ll keep shoppers inside Priceproof from discovery → decision → checkout.</p>
           </div>
 
-          <button id="backToTop" class="back-top" type="button">Back to top</button>
+          <button id="backToTop" class="chip chip-ghost backtop" type="button">Back to top</button>
         </div>
       </section>
     </main>
 
-    <footer class="footer">
-      © 2026 Priceproof™ — Transparent pricing, always.
-    </footer>
+    <footer class="footer">© 2026 Priceproof™ — Transparent pricing, always.</footer>
   </div>
 
-  <script src="/script.js?v=pp-aurora-1"></script>
+  <script src="script.js"></script>
 </body>
 </html>
