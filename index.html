@@ -2,90 +2,192 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Priceproof — Buy Smarter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Priceproof — Your AI Deal Assistant</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
-
-<header class="topbar">
-  <div class="brand">Priceproof</div>
-  <nav>
-    <a href="#why">Why Priceproof</a>
-    <a href="#how">How it works</a>
-    <a href="#results">Results</a>
-  </nav>
-</header>
-
-<section class="hero">
-  <h1>Buy smarter,<br/>without the guesswork.</h1>
-  <p>
-    Compare prices across trusted retailers and see the best total cost — so you can shop confidently every time.
-  </p>
-
-  <!-- IMPORTANT: form submit = Enter works, no page reload -->
-  <form id="searchForm" class="search-box">
-    <input id="searchInput" type="text" placeholder="Search a product or UPC…" autocomplete="off" />
-    <button id="searchButton" type="submit">Check Price</button>
-  </form>
-</section>
-
-<section class="trust-section">
-  <div class="trust-item">Unbiased comparisons</div>
-  <div class="trust-item">No sponsored placements</div>
-  <div class="trust-item">Lowest total price first</div>
-  <div class="trust-item">You stay in control</div>
-</section>
-
-<section id="why" class="how-section">
-  <h2>Why Priceproof exists</h2>
-  <p>
-    Prices change constantly, and comparing them across retailers takes time. Priceproof exists to make that process simple,
-    transparent, and reliable.
-  </p>
-  <p>
-    We focus on showing the lowest total price so you can move forward with confidence — no second-guessing required.
-  </p>
-</section>
-
-<section id="how" class="how-section">
-  <h2>How it works</h2>
-  <div class="steps">
-    <div class="step"><span>1</span><p>Search for any product or UPC</p></div>
-    <div class="step"><span>2</span><p>We compare prices across major retailers</p></div>
-    <div class="step"><span>3</span><p>See the best deal and buy with confidence</p></div>
+  <!-- Aurora background layers -->
+  <div class="aurora" aria-hidden="true">
+    <div class="aurora__base"></div>
+    <div class="aurora__glow"></div>
+    <div class="aurora__ribbon a1"></div>
+    <div class="aurora__ribbon a2"></div>
+    <div class="aurora__ribbon a3"></div>
+    <div class="aurora__noise"></div>
   </div>
-</section>
 
-<section id="results" class="results hidden">
-  <h2>Best price available</h2>
-  <div class="subtle">Prices checked moments ago</div>
+  <div class="page">
 
-  <!-- agentBox will be injected ABOVE the table by script.js -->
-  <table>
-    <thead>
-      <tr>
-        <th>Retailer</th>
-        <th>Item Price</th>
-        <th>Total Cost</th>
-      </tr>
-    </thead>
-    <tbody id="resultsBody"></tbody>
-  </table>
+    <!-- Top Bar -->
+    <header class="topbar">
+      <a class="brand" href="#">
+        <span class="brand-mark" aria-hidden="true">⚡</span>
+        <span class="brand-text">Priceproof<span class="tm">™</span></span>
+      </a>
 
-  <div class="fineprint">Prices may vary. Final totals are determined at retailer checkout.</div>
-</section>
+      <div class="right-actions">
+        <button class="icon-btn" type="button" title="Account" aria-label="Account">
+          👤 <span class="icon-label">Account</span>
+        </button>
+        <button class="icon-btn" type="button" title="Cart" aria-label="Cart">
+          🛒 <span class="icon-label">Cart</span>
+          <span id="cartCount" class="cart-badge">0</span>
+        </button>
+      </div>
+    </header>
 
-<section class="cta">
-  <h2>Never wonder if you overpaid again.</h2>
-  <p>Make Priceproof part of every purchase.</p>
-</section>
+    <!-- HERO -->
+    <main class="hero">
+      <div class="hero-card">
+        <div class="kicker">
+          <span class="kicker-dot"></span>
+          <span>Your friendly AI deal assistant</span>
+        </div>
 
-<footer>
-  © 2026 Priceproof — Transparent pricing, always.
-</footer>
+        <h1 class="hero-title">
+          <span class="aurora-title">Find the best deal</span><br/>
+          <span class="hero-title-sub">anywhere online.</span>
+        </h1>
 
-<!-- Cache-bust so the browser definitely loads the new JS -->
-<script src="script.js?v=25"></script>
+        <p class="subhead">
+          Priceproof compares offers and highlights the best total cost — and as we expand, our goal is simple:
+          <strong>If it’s posted online, we’ll find it.</strong>
+        </p>
+
+        <form id="searchForm" class="search-box" autocomplete="off">
+          <input
+            id="searchInput"
+            type="text"
+            placeholder="Search a product (ex: PS5, AirPods, UPC)…"
+            autocomplete="off"
+          />
+          <button id="searchButton" type="submit">Check Price</button>
+        </form>
+
+        <div class="trust-row">
+          <span class="pill">Unbiased comparisons</span>
+          <span class="pill">No sponsored placements</span>
+          <span class="pill">Lowest total price first</span>
+          <span class="pill">You stay in control</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- WHY -->
+    <section class="section">
+      <div class="section-card">
+        <h2>Why Priceproof exists</h2>
+        <p>
+          Prices change constantly, and comparing them across websites takes time.
+          Priceproof makes it simple, transparent, and reliable.
+        </p>
+        <p>
+          We focus on the <strong>lowest total price</strong> so you can move forward with confidence — no second-guessing required.
+        </p>
+
+        <div class="feature-grid">
+          <div class="feature">
+            <div class="feature-icon">✨</div>
+            <div>
+              <div class="feature-title">AI picks the best option</div>
+              <div class="feature-text">We rank by total cost + trust signals.</div>
+            </div>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">🧾</div>
+            <div>
+              <div class="feature-title">Transparent totals</div>
+              <div class="feature-text">Item + shipping + tax shown clearly.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW -->
+    <section class="section">
+      <div class="section-card">
+        <h2>How it works</h2>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <div class="step-title">Search</div>
+              <div class="step-text">Type a product name or UPC.</div>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <div class="step-title">Compare</div>
+              <div class="step-text">We pull offers and rank by total cost + trust.</div>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <div class="step-title">Buy</div>
+              <div class="step-text">Pick the best deal or an alternative you prefer.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section id="results" class="section results hidden">
+      <div class="section-card">
+        <div class="results-head">
+          <div>
+            <h2>Best price available</h2>
+            <div id="resultsMeta" class="muted">Prices checked moments ago</div>
+          </div>
+
+          <div class="tiny-note">
+            Final totals are determined at retailer checkout.
+            <button id="backToTop" type="button" class="link-btn">Back to top</button>
+          </div>
+        </div>
+
+        <!-- agentBox will be injected here by script.js -->
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Retailer</th>
+                <th>Item Price</th>
+                <th>Total Cost</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="cta-card">
+          <h3>Next: 1-click “Add to Cart” (Priceproof checkout)</h3>
+          <p>
+            We’ll build a cart flow so users don’t bounce to other sites.
+            Priceproof will guide discovery → decision → checkout.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      © 2026 Priceproof<span class="tm">™</span> — Transparent pricing, always.
+    </footer>
+
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
