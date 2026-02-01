@@ -7,87 +7,134 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Aurora background layers -->
-  <div class="aurora" aria-hidden="true"></div>
+  <!-- Aurora background -->
+  <div class="bg" aria-hidden="true">
+    <div class="bg-aurora"></div>
+    <div class="bg-noise"></div>
+  </div>
 
   <div class="page">
-    <!-- Top bar -->
-    <header class="topbar">
-      <div class="topbar-center">
-        <a class="brand" href="#">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-inner">
+        <a class="brand" href="#" aria-label="Priceproof home">
           <span class="brand-mark" aria-hidden="true">
-            <!-- Friendly AI orb icon -->
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M12 21c4.97 0 9-4.03 9-9s-4.03-9-9-9-9 4.03-9 9 4.03 9 9 9Z" stroke="currentColor" stroke-width="1.6"/>
-              <path d="M8.8 12.2c.6 1.1 1.8 1.8 3.2 1.8s2.6-.7 3.2-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-              <path d="M9.2 10.2h.01M14.8 10.2h.01" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+            <!-- Friendly AI badge logo -->
+            <svg viewBox="0 0 64 64" fill="none">
+              <defs>
+                <linearGradient id="ppg" x1="8" y1="8" x2="56" y2="56">
+                  <stop stop-color="rgba(34,211,238,.95)"/>
+                  <stop offset="0.55" stop-color="rgba(16,185,129,.90)"/>
+                  <stop offset="1" stop-color="rgba(59,130,246,.92)"/>
+                </linearGradient>
+              </defs>
+              <path d="M32 58c14.36 0 26-11.64 26-26S46.36 6 32 6 6 17.64 6 32s11.64 26 26 26Z" stroke="url(#ppg)" stroke-width="3.2"/>
+              <path d="M20 30.5c0-5.25 4.25-9.5 9.5-9.5h5c5.25 0 9.5 4.25 9.5 9.5v4c0 5.25-4.25 9.5-9.5 9.5h-5c-5.25 0-9.5-4.25-9.5-9.5v-4Z" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.26)" stroke-width="2"/>
+              <circle cx="27.5" cy="32" r="2.2" fill="rgba(255,255,255,.92)"/>
+              <circle cx="36.5" cy="32" r="2.2" fill="rgba(255,255,255,.92)"/>
+              <path d="M28.2 37.6c1.1 1.35 2.5 2.05 3.8 2.05s2.7-.7 3.8-2.05" stroke="rgba(255,255,255,.92)" stroke-width="2.2" stroke-linecap="round"/>
             </svg>
           </span>
           <span class="brand-text">Priceproof<span class="tm">™</span></span>
         </a>
+
+        <nav class="nav">
+          <!-- Account now matches Cart style -->
+          <button id="accountBtn" class="nav-btn nav-btn-primary" type="button" aria-label="Account">
+            <span class="nav-ico">👤</span>
+            <span class="nav-txt">Account</span>
+          </button>
+
+          <button id="cartBtn" class="nav-btn nav-btn-primary" type="button" aria-label="Cart">
+            <span class="nav-ico">🛒</span>
+            <span class="nav-txt">Cart</span>
+            <span id="cartCount" class="count">0</span>
+          </button>
+        </nav>
       </div>
-
-      <nav class="topbar-right">
-        <button class="chip chip-ghost" type="button" aria-label="Account">
-          <span aria-hidden="true">👤</span> <span>Account</span>
-        </button>
-
-        <button class="chip chip-ghost" type="button" aria-label="Cart">
-          <span aria-hidden="true">🛒</span>
-          <span>Cart</span>
-          <span id="cartCount" class="cart-badge">0</span>
-        </button>
-      </nav>
     </header>
 
     <!-- Hero -->
-    <main class="hero">
-      <section class="card hero-card">
-        <div class="hero-center">
-          <div class="kicker aurora-chip">
-            <span class="kdot" aria-hidden="true"></span>
+    <main class="main">
+      <section class="hero">
+        <div class="hero-card">
+          <div class="hero-pill">
+            <span class="dot" aria-hidden="true"></span>
             <span>Your friendly AI deal assistant</span>
           </div>
 
+          <!-- Bubble behind the whole headline -->
           <h1 class="hero-title">
-            <span class="bubble-title">Buy smarter, without the guesswork.</span>
+            <span class="hero-em hero-em-all">Find the best deal anywhere online</span>
           </h1>
 
-          <p class="subhead">
-            Priceproof searches the web and highlights the best total cost — so you can shop confidently every time.
+          <!-- Option B hero copy -->
+          <p class="hero-sub">
+            We scan trusted retailers and the open web, then rank offers by <strong>total cost + trust</strong> — so you can buy with confidence.
           </p>
 
-          <form id="searchForm" class="search-box" autocomplete="off">
-            <input id="searchInput" class="input" type="text" placeholder="Search a product (ex: ps5, airpods, nike shoes…)" />
-            <button class="btn btn-primary" type="submit">Check Price</button>
+          <form id="searchForm" class="search" autocomplete="off">
+            <input
+              id="searchInput"
+              class="search-input"
+              type="text"
+              placeholder="Search a product (ps5 slim digital, airpods pro 2, nike dunk…)"
+              aria-label="Search products"
+            />
+            <button class="btn btn-aurora" type="submit">Check Price</button>
           </form>
 
-          <div class="trust-row">
-            <div class="pill">Unbiased comparisons</div>
-            <div class="pill">No sponsored placements</div>
-            <div class="pill">Lowest total cost first</div>
-            <div class="pill">You stay in control</div>
+          <div class="trust">
+            <div class="trust-item">Unbiased comparisons</div>
+            <div class="trust-item">No sponsored placements</div>
+            <div class="trust-item">Lowest total cost first</div>
+            <div class="trust-item">You stay in control</div>
+          </div>
+        </div>
+
+        <!-- “Storefront” quick panels -->
+        <div class="hero-panels">
+          <div class="panel">
+            <div class="panel-title">🧠 AI Summary</div>
+            <div class="panel-text">We explain <strong>why</strong> a deal is best — not just the price.</div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">⚡ Smart Cart</div>
+            <div class="panel-text">Add picks to cart now. Next: <strong>1-click checkout</strong> inside Priceproof.</div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">🔔 Price Watch</div>
+            <div class="panel-text">Set a target price and we’ll alert you (V1 local save, alerts later).</div>
           </div>
         </div>
       </section>
 
       <!-- Results -->
-      <section id="results" class="section results hidden">
-        <div class="card section-card">
-          <div class="results-head center">
-            <div>
-              <div class="results-title">Best price available</div>
-              <div id="resultsMeta" class="results-meta">Prices checked moments ago</div>
-            </div>
-            <div class="results-note">
-              Final totals are determined at retailer checkout.
+      <section id="results" class="results hidden" aria-live="polite">
+        <div class="results-head">
+          <div class="results-head-card">
+            <div class="results-kicker">Best price available</div>
+            <div id="resultsMeta" class="results-meta">Prices checked moments ago</div>
+            <div class="results-note">Final totals are determined at retailer checkout.</div>
+          </div>
+        </div>
+
+        <div id="agentMount"></div>
+
+        <div class="offers">
+          <div class="offers-head">
+            <h2 class="h2">All offers</h2>
+
+            <!-- This used to feel lonely: now it has helper text + matching aurora button -->
+            <div class="offers-right">
+              <div class="offers-hint">Cards are the main view. Table is optional.</div>
+              <button id="toggleTable" class="btn btn-aurora" type="button">Show table</button>
             </div>
           </div>
 
-          <!-- Agent UI gets injected here -->
-          <div id="agentMount"></div>
+          <div id="offersGrid" class="offers-grid"></div>
 
-          <div class="table-wrap">
+          <div id="tableWrap" class="table-wrap hidden">
             <table>
               <thead>
                 <tr>
@@ -98,26 +145,52 @@
               </thead>
               <tbody id="resultsBody">
                 <tr>
-                  <td colspan="3" style="padding:18px; opacity:.85;">
-                    Search above to see results.
-                  </td>
+                  <td colspan="3">Search above to see results.</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div class="cta-card center">
-            <h3>Next: 1-click “Add to Cart” (Priceproof checkout)</h3>
-            <p>We’ll keep shoppers inside Priceproof from discovery → decision → checkout.</p>
+          <div class="next-card">
+            <div class="next-title">Next: 1-click “Add to Cart” (Priceproof checkout)</div>
+            <div class="next-text">
+              We’ll keep shoppers inside Priceproof from discovery → decision → checkout.
+            </div>
           </div>
 
-          <button id="backToTop" class="chip chip-ghost backtop" type="button">Back to top</button>
+          <!-- Back to top restored + styled -->
+          <button id="backToTop" class="btn btn-aurora backtop" type="button">Back to top</button>
         </div>
       </section>
-    </main>
 
-    <footer class="footer">© 2026 Priceproof™ — Transparent pricing, always.</footer>
+      <footer class="footer">
+        © 2026 Priceproof™ — Transparent pricing, always.
+      </footer>
+    </main>
   </div>
+
+  <!-- Cart Drawer -->
+  <div id="cartOverlay" class="overlay hidden" aria-hidden="true"></div>
+
+  <aside id="cartDrawer" class="drawer hidden" aria-hidden="true" aria-label="Cart drawer">
+    <div class="drawer-head">
+      <div class="drawer-title">Your Cart</div>
+      <button id="cartClose" class="btn btn-ghost" type="button">Close</button>
+    </div>
+
+    <div id="cartItems" class="drawer-items"></div>
+
+    <div class="drawer-foot">
+      <div class="drawer-row">
+        <div class="drawer-label">Subtotal</div>
+        <div id="cartSubtotal" class="drawer-value">$0.00</div>
+      </div>
+      <button class="btn btn-aurora full" type="button" id="checkoutBtn">
+        Checkout (coming soon)
+      </button>
+      <div class="drawer-hint">V1 cart is local. Next we’ll connect a real checkout flow.</div>
+    </div>
+  </aside>
 
   <script src="script.js"></script>
 </body>
